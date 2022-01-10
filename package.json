@@ -1,0 +1,47 @@
+{
+  "type": "module",
+  "name": "kb2abot-dedicated-server",
+  "version": "1.0.0",
+  "description": "Dedicated kb2abot server",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --es-module-specifier-resolution=node --no-warnings src/index.js",
+    "update": "node scripts/update",
+    "dev": "nodemon -x \"node --trace-warnings --es-module-specifier-resolution=node\" src/index.js",
+    "debug": "node --trace-warnings --es-module-specifier-resolution=node --inspect-brk src/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kb2ateam/kb2abot-dedicated-server.git"
+  },
+  "keywords": [
+    "kb2abot",
+    "kb2abot-dedicated-server"
+  ],
+  "author": "khoakomlem",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kb2ateam/kb2abot-dedicated-server/issues"
+  },
+  "homepage": "https://github.com/kb2ateam/kb2abot-dedicated-server#readme",
+  "dependencies": {
+    "@babel/core": "^7.16.0",
+    "@babel/eslint-parser": "^7.16.3",
+    "@babel/plugin-syntax-top-level-await": "^7.14.5",
+    "axios": "^0.24.0",
+    "chalk": "^4.1.0",
+    "deep-extend": "^0.6.0",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "glob": "^7.2.0",
+    "hjson": "^3.2.2",
+    "node-fetch": "^3.1.0",
+    "socket.io": "^4.4.0",
+    "tiktok-scraper": "^1.4.36",
+    "uniqid": "^5.4.0"
+  },
+  "devDependencies": {
+    "eslint": "^7.26.0",
+    "nodemon": "^2.0.15"
+  }
+}

@@ -1,0 +1,10 @@
+config/*
+!config/README.txt
+
+userdata/*
+!userdata/README.txt
+
+datastores/*
+!datastores/README.txt
+
+node_modules/
