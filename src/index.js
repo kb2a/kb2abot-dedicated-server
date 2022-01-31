@@ -7,18 +7,21 @@ import {Server} from "socket.io"
 import express from "express"
 import http from "http"
 import glob from "glob"
-import uniqid from "uniqid"
+import fetch from "node-fetch"
+import {Server as PromiseIO} from "promise-socket.io"
 import {Plugin, PluginManager, Datastore} from "kb2abot"
-import {callbackKeys, normalKeys} from "kb2abot/util/fca"
+import {callbackKeys, normalKeys, stringifyAppstate} from "kb2abot/util/fca"
 import hook from "kb2abot/deploy/facebook/hook"
 import * as Logger from "kb2abot/util/logger"
 
 import devPlugins from "../devPlugins"
 import SERVER_CONFIG from "../config"
+import * as Label from "./label"
 
 const app = express()
 const httpServer = http.createServer(app)
 const io = new Server(httpServer)
+const promiseIO = new PromiseIO(io)
 const port = process.env.REMOTE_PORT || 1810
 
 // init datastore directory
@@ -63,134 +66,74 @@ for (let i = 0; i < loads.length; i++) {
 // load plugins export from root/devPlugins.js (plugins added by hand)
 for (let i = 0; i < devPlugins.length; i++) {
 	const plugin = devPlugins[i]
-	if (plugin instanceof Plugin) {
-		await pluginManager.add(plugin)
-		Logger.success(`LOADED ${plugin.package.name}`)
-	} else {
-		console.log()
-		console.log(plugin)
-		Logger.warn(
-			"This plugin is not an instance of Kb2abot.Plugin, skipping . . ."
-		)
-	}
+	await pluginManager.add(plugin)
+	Logger.success(`LOADED ${plugin.package.name}`)
 }
 
 // register internal plugin
 for (const plugin of pluginManager)
 	if (plugin.isInternal) plugin.pluginManager = pluginManager
 
-httpServer.listen(port, () =>
-	Logger.success("Plugin server started on port: *" + port)
-)
-
-io.on("connection", async socket => {
-	const register = {}
-	const remoteApi = createRemoteAPI(register, socket)
-
-	socket.on("api-request-bot", async request => {
-		const sendBack = (result, success = true) => {
-			socket.emit("bot-response-api", {
-				request,
-				result,
-				success
-			})
-			console.log("Bot reponse to api: ", result)
-		}
-		switch (request.command) {
-		case "handleMessage":
-			try {
-				sendBack(
-					await hook.bind({
-						api: remoteApi,
-						config: SERVER_CONFIG,
-						pluginManager
-					})(undefined, request.args[0])
-				)
-			} catch (err) {
-				sendBack(err.stack, false)
-			}
-			break
-		}
-
-		// switch (request.command) {
-		// case "findCommands":
-		// 	{
-		// 		/*
-		// 		const [address] = request.args
-		// 		const commands = pluginManager.map(plugin => plugin.commands.recursiveFind(address)).flat()
-		// 		sendBack(commands.map(c => c.serialize()))
-		// 		 */
-
-		// 		const userid = await remoteApi.getCurrentUserID()
-		// 		sendBack({ userid })
-		// 		break
-		// 	}
-		// case "getAllPlugins"
-		// sendBack(pluginManager.map(plugin => plugin.serialize()))
-		// break
-		// case "executeCommand":
-		// 	{
-		// 		const [address, threadID, message] = request.args
-		// 		const thread = await getThread(message.threadID)
-		// 		const commands = pluginManager.map(plugin => plugin.commands.recursiveFind(address)).flat()
-		// 		commands[0].onCall
-
-		// 		break
-		// 	}
-		// }
-	})
-
-	socket.on("api-response-bot", ({request, result, success}) => {
-		if (register[request.id]) {
-			clearTimeout(register[request.id].timeout)
-			if (success) register[request.id].resolve(result)
-			else register[request.id].reject(result)
-			delete register[request.id]
-		}
-	})
-
+promiseIO.onConnection(async socket => {
+	const remoteFca = createRemoteFCA(socket)
 	try {
-		socket.data.userID = await remoteApi.getCurrentUserID()
+		socket.data.userID = await remoteFca.getCurrentUserID()
 		Logger.success(`User ${socket.data.userID} connected!`)
 	} catch (err) {
+		console.log(err)
 		Logger.warn("Someone has connected but cannot retreive userID!")
 		return socket.disconnect()
 	}
+
+	socket.onPromise("handleMessage", async message => {
+		try {
+			return await hook.bind({
+				api: remoteFca,
+				config: SERVER_CONFIG,
+				pluginManager
+			})(undefined, message)
+		} catch (err) {
+			return [err, false]
+		}
+	})
 
 	socket.on("disconnect", () => {
 		Logger.warn(`User ${socket.data.userID} disconnected!`)
 	})
 })
 
-function createRemoteAPI(register, socket) {
-	const executeMethod = (method, ...args) => {
-		return new Promise((resolve, reject) => {
-			const msg = new RemoteCommand(method, args)
-			const timeout = setTimeout(() => {
-				if (!register[msg.id]) return
-				delete register[msg.id]
-				reject("Remote api timeout!")
-			}, process.env.REMOTE_TIMEOUT)
-			register[msg.id] = {resolve, reject, timeout}
-			socket.emit("bot-request-api", msg)
-			console.log("Bot request to api: ", msg)
-		})
-	}
+function createRemoteFCA(socket) {
 	const functions = {}
 	callbackKeys.push("sendMessage")
-	for (const method of callbackKeys)
-		functions[method] = (...args) => executeMethod(method, ...args)
-	for (const method of normalKeys)
-		functions[method] = (...args) => executeMethod(method, ...args)
+	for (const method of [].concat(callbackKeys, normalKeys))
+		functions[method] = (...args) => socket.emitPromise("fca", [].concat(method, args))
 
-	functions.ping = (timeNow = Date.now()) => executeMethod("ping", timeNow)
+	functions.fetch = async (url, noHeadersOption = {}, extendedHeaders = {}) => {
+		const cookie = stringifyAppstate(await functions.getAppState())
+		return await fetch(url, {
+			headers: {
+				"User-Agent":
+					"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_2) AppleWebKit/600.3.18 (KHTML, like Gecko) Version/8.0.3 Safari/600.3.18",
+				cookie,
+				...extendedHeaders
+			},
+			...noHeadersOption
+		})
+	}
+
+	functions.getToken = async () => {
+		const data = await (await functions.fetch("https://business.facebook.com/business_locations")).text()
+		const first = /LMBootstrapper(.*?){"__m":"LMBootstrapper"}/.exec(data)[1]
+		const second = /"],\["(.*?)","/.exec(first)[1]
+		return second
+	}
+
+	// send exclusive commands (not belong to fca methods)
+	functions.socket = socket
+
 	return functions
 }
 
-class RemoteCommand {
-	id = uniqid();
-	constructor(command, args) {
-		this.command = command
-		this.args = args
-	}
-}
+httpServer.listen(port, () =>
+	Logger.success("Plugin server started on port: *" + port)
+)
