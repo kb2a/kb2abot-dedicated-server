@@ -25,6 +25,7 @@ const promiseIO = new PromiseIO(io)
 const port = process.env.REMOTE_PORT || 1810
 
 // init datastore directory
+Logger.log("Initing datastore")
 Datastore.init("datastores")
 
 const pluginManager = new PluginManager("config", "userdata")
@@ -38,6 +39,8 @@ if (pkgPaths.length == 0)
 	Logger.warn(
 		`No plugins found at ${pluginMiniMatch}, make sure you are passing valid directory!`
 	)
+else
+	Logger.log(`Found ${pkgPaths.length} plugins at /plugins`)
 const _import = async u => {
 	try {
 		return await import(url.pathToFileURL(u))
@@ -46,6 +49,7 @@ const _import = async u => {
 		return false
 	}
 }
+Logger.log("Loading plugins at /plugins")
 const loads = (
 	await Promise.all(
 		pkgPaths.map(pth => {
@@ -64,6 +68,7 @@ for (let i = 0; i < loads.length; i++) {
 }
 
 // load plugins export from root/devPlugins.js (plugins added by hand)
+Logger.log("Loading plugins instance at ./devPlugins.js")
 for (let i = 0; i < devPlugins.length; i++) {
 	const plugin = devPlugins[i]
 	await pluginManager.add(plugin)
@@ -74,27 +79,33 @@ for (let i = 0; i < devPlugins.length; i++) {
 for (const plugin of pluginManager)
 	if (plugin.isInternal) plugin.pluginManager = pluginManager
 
+Logger.log("Setting up socket.io server")
 promiseIO.onConnection(async socket => {
 	const remoteFca = createRemoteFCA(socket)
 	try {
 		socket.data.userID = await remoteFca.getCurrentUserID()
 		Logger.success(`User ${socket.data.userID} connected!`)
 	} catch (err) {
-		console.log(err)
+		Logger.error(err)
 		Logger.warn("Someone has connected but cannot retreive userID!")
 		return socket.disconnect()
 	}
 
+	try {
+		for (const plugin of pluginManager)
+			await plugin.onLogin(remoteFca)
+	}
+	catch(err) {
+		Logger.error("Error while triggering onLogin events")
+		Logger.error(err)
+	}
+
 	socket.onPromise("handleMessage", async message => {
-		try {
-			return await hook.bind({
-				api: remoteFca,
-				config: SERVER_CONFIG,
-				pluginManager
-			})(undefined, message)
-		} catch (err) {
-			return [err, false]
-		}
+		return await hook.bind({
+			api: remoteFca,
+			config: SERVER_CONFIG,
+			pluginManager
+		})(undefined, message)
 	})
 
 	socket.on("disconnect", () => {
@@ -106,7 +117,7 @@ function createRemoteFCA(socket) {
 	const functions = {}
 	callbackKeys.push("sendMessage")
 	for (const method of [].concat(callbackKeys, normalKeys))
-		functions[method] = (...args) => socket.emitPromise("fca", [].concat(method, args))
+		functions[method] = (...args) => socket.emitPromise("fca", method, args)
 
 	functions.fetch = async (url, noHeadersOption = {}, extendedHeaders = {}) => {
 		const cookie = stringifyAppstate(await functions.getAppState())
@@ -133,6 +144,13 @@ function createRemoteFCA(socket) {
 
 	return functions
 }
+
+Logger.log("Creating interval for saving datastore")
+setInterval(() => {
+	for (const plugin of pluginManager)
+		pluginManager.saveDatastore(plugin)
+	Logger.success("Saved datastore successfully!")
+}, SERVER_CONFIG.datastoreInterval || 1000*60*60*1)
 
 httpServer.listen(port, () =>
 	Logger.success("Plugin server started on port: *" + port)

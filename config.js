@@ -7,5 +7,8 @@ export default {
 		// Bạn có thể lên trang: findidfb.com hoặc lookup-id.com để lấy ID Facebook
 		"100007723935647"
 	],
-	refreshAdminIDs: false
+	refreshAdminIDs: false,
+	interval: {
+		datastore: 1000*60*10
+	}
 }
