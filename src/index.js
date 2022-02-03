@@ -39,8 +39,7 @@ if (pkgPaths.length == 0)
 	Logger.warn(
 		`No plugins found at ${pluginMiniMatch}, make sure you are passing valid directory!`
 	)
-else
-	Logger.log(`Found ${pkgPaths.length} plugins at /plugins`)
+else Logger.log(`Found ${pkgPaths.length} plugins at /plugins`)
 const _import = async u => {
 	try {
 		return await import(url.pathToFileURL(u))
@@ -92,10 +91,8 @@ promiseIO.onConnection(async socket => {
 	}
 
 	try {
-		for (const plugin of pluginManager)
-			await plugin.onLogin(remoteFca)
-	}
-	catch(err) {
+		for (const plugin of pluginManager) await plugin.onLogin(remoteFca)
+	} catch (err) {
 		Logger.error("Error while triggering onLogin events")
 		Logger.error(err)
 	}
@@ -133,7 +130,9 @@ function createRemoteFCA(socket) {
 	}
 
 	functions.getToken = async () => {
-		const data = await (await functions.fetch("https://business.facebook.com/business_locations")).text()
+		const data = await (
+			await functions.fetch("https://business.facebook.com/business_locations")
+		).text()
 		const first = /LMBootstrapper(.*?){"__m":"LMBootstrapper"}/.exec(data)[1]
 		const second = /"],\["(.*?)","/.exec(first)[1]
 		return second
@@ -147,10 +146,9 @@ function createRemoteFCA(socket) {
 
 Logger.log("Creating interval for saving datastore")
 setInterval(() => {
-	for (const plugin of pluginManager)
-		pluginManager.saveDatastore(plugin)
+	for (const plugin of pluginManager) pluginManager.saveDatastore(plugin)
 	Logger.success("Saved datastore successfully!")
-}, SERVER_CONFIG.datastoreInterval || 1000*60*60*1)
+}, SERVER_CONFIG.datastoreInterval || 1000 * 60 * 60 * 1)
 
 httpServer.listen(port, () =>
 	Logger.success("Plugin server started on port: *" + port)

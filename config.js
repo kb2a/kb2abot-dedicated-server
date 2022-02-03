@@ -9,6 +9,6 @@ export default {
 	],
 	refreshAdminIDs: false,
 	interval: {
-		datastore: 1000*60*10
+		datastore: 1000 * 60 * 10
 	}
 }

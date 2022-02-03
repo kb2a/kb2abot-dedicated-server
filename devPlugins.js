@@ -3,6 +3,6 @@ import InternalPlugin from "kb2abot-plugin-internal"
 
 export default [
 	// your custom plugin goes here (instance of Kb2abot.Plugin extended plugin)
-	new InternalPlugin(),
+	new InternalPlugin()
 	// new MasoiGame()
 ]
