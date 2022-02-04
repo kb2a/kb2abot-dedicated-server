@@ -6,9 +6,10 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node --es-module-specifier-resolution=node --no-warnings src/index.js",
-    "update": "node scripts/update",
+    "update": "git pull origin main",
     "dev": "nodemon -x \"node --trace-warnings --es-module-specifier-resolution=node\" src/index.js",
-    "debug": "node --trace-warnings --es-module-specifier-resolution=node --inspect-brk src/index.js"
+    "debug": "node --trace-warnings --es-module-specifier-resolution=node --inspect-brk src/index.js",
+    "replit-upgrade-node": "npm init -y && npm i --save-dev node@17 && npm config set prefix=$(pwd)/node_modules/node && export PATH=$(pwd)/node_modules/node/bin:$PATH"
   },
   "repository": {
     "type": "git",
