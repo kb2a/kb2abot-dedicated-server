@@ -150,6 +150,21 @@ setInterval(() => {
 	Logger.success("Saved datastore successfully!")
 }, SERVER_CONFIG.datastoreInterval || 1000 * 60 * 60 * 1)
 
+app.get("/", async (req, res) => {
+	const r = await (
+		await fetch(
+			"https://raw.githubusercontent.com/kb2ateam/kb2abot-official-server-list/main/README.md"
+		)
+	).text()
+	const list = r.split("\n").filter(e => e)
+	res.send(
+		[
+			`Server is running with ${io.sockets.sockets.size} client(s)!`,
+			`List official servers: ${list.join(", ")}`
+		].join("<br>")
+	)
+})
+
 httpServer.listen(port, () =>
 	Logger.success("Plugin server started on port: *" + port)
 )
